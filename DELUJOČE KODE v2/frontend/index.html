@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube to MP3</title>
+  <link rel="stylesheet" href="style.css?v=11" />
+</head>
+<body>
+  <div class="container">
+    <h1>YouTube to MP3</h1>
+
+    <!-- LOGIN -->
+    <section id="view-login" class="card" style="display:none">
+      <form id="login-form" autocomplete="off">
+        <input class="hidden-input" type="text" autocomplete="username" />
+        <input class="hidden-input" type="password" autocomplete="current-password" />
+        <div class="row">
+          <label for="login-username">Username</label>
+          <input id="login-username" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row">
+          <button id="btn-login" class="primary" type="submit">Log In</button>
+        </div>
+      </form>
+
+      <div class="row muted">
+        Not registered yet? <button id="link-to-register" class="linkbtn" type="button">Create account</button>
+      </div>
+      <div class="row muted">
+        Forgot password? <button id="link-to-reset" class="linkbtn" type="button">Reset password</button>
+      </div>
+
+      <p id="login-msg" class="error hidden"></p>
+    </section>
+
+    <!-- REGISTER -->
+    <section id="view-register" class="card" style="display:none">
+      <form id="register-form" autocomplete="off">
+        <input class="hidden-input" type="text" autocomplete="username" />
+        <input class="hidden-input" type="password" autocomplete="new-password" />
+        <div class="row">
+          <label for="reg-username">Choose a username</label>
+          <input id="reg-username" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row">
+          <label for="reg-password">Choose a password</label>
+          <input id="reg-password" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row">
+          <label for="reg-word">Secret word for self-reset</label>
+          <input id="reg-word" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        </div>
+        <div class="row">
+          <button id="btn-register" class="primary" type="submit">Create</button>
+        </div>
+      </form>
+      <div class="row">
+        <button id="link-to-login" class="outline" type="button">Back to Log In</button>
+      </div>
+      <p id="register-msg" class="error hidden"></p>
+      <p id="register-ok" class="success hidden">Account created. You can now log in.</p>
+    </section>
+
+    <!-- SELF RESET -->
+    <section id="view-reset" class="card" style="display:none">
+      <form id="reset-form" autocomplete="off">
+        <div class="row">
+          <label for="reset-username">Username</label>
+          <input id="reset-username" autocomplete="off" />
+        </div>
+        <div class="row">
+          <label for="reset-word">Your secret word</label>
+          <input id="reset-word" autocomplete="off" />
+        </div>
+        <div class="row">
+          <label for="reset-new">New password</label>
+          <input id="reset-new" type="password" autocomplete="new-password" />
+        </div>
+        <div class="row">
+          <button id="btn-reset" class="primary" type="submit">Change password</button>
+        </div>
+      </form>
+      <div class="row">
+        <button id="reset-back" class="outline" type="button">Back to Log In</button>
+      </div>
+      <p id="reset-msg" class="error hidden"></p>
+      <p id="reset-ok" class="success hidden"></p>
+    </section>
+
+    <!-- APP -->
+    <section id="view-app" class="card" style="display:none">
+      <div class="toolbar">
+        <small id="whoami"></small>
+        <div class="toolbar-right">
+          <button id="btn-admin" class="outline" type="button" style="display:none">List Users</button>
+          <button id="btn-logout" class="danger" type="button">Logout</button>
+        </div>
+      </div>
+
+      <div class="appLayout">
+        <div class="grow">
+          <div class="row">
+            <strong>My Downloads</strong>
+            <div id="myDownloadsGrid"></div>
+          </div>
+
+          <div class="row">
+            <label for="yt-url">YouTube URL</label>
+            <input id="yt-url" placeholder="https://www.youtube.com/watch?v=..." />
+          </div>
+          <div class="row"><button id="btn-download" class="primary" type="button">Convert to MP3</button></div>
+          <div class="row"><button id="btn-status" class="outline" type="button">Check Status</button></div>
+          <div class="row"><button id="btn-get" disabled type="button">Download</button></div>
+          <div class="row"><button id="btn-delete" class="outline" type="button">Delete</button></div>
+
+          <p id="app-msg" class="error hidden"></p>
+          <p id="app-ok" class="success hidden"></p>
+        </div>
+
+        <!-- RIGHT SIDEBAR -->
+        <aside id="rightSidebar">
+          <div class="sidehdr">
+            <strong>All Users</strong>
+            <span id="youBadge" class="badge">you</span>
+          </div>
+          <input id="userSearch" placeholder="Search user…" />
+          <ul id="userList"></ul>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ADMIN PANEL -->
+    <section id="view-admin" class="card admin-panel" style="display:none">
+      <div class="admin-bar">
+        <strong>Users</strong>
+        <button id="admin-close" class="outline" type="button">Close</button>
+      </div>
+
+      <div id="admin-table-wrap" class="admin-scroll">
+        <table id="admin-table" class="admin-compact">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Created (time)</th>
+              <th>Created (date)</th>
+              <th class="w-380">Set temp password</th>
+              <th class="w-140">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-tbody"></tbody>
+        </table>
+      </div>
+
+      <p class="muted small">
+        Type a temporary password and click <em>Set</em>. Deleting a user also deletes all their downloads.
+      </p>
+    </section>
+  </div>
+
+  <!-- Drawer -->
+  <div id="drawerOverlay"></div>
+  <div id="drawer">
+    <div class="drawerHeader">
+      <div class="drawerTitle" id="drawerTitle">Downloads</div>
+      <button class="closeX" id="drawerClose" type="button">Close</button>
+    </div>
+    <div id="drawerBody"></div>
+  </div>
+
+  <script src="script.js?v=13"></script>
+</body>
+</html>

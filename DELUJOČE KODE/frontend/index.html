@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube to MP3</title>
+  <link rel="stylesheet" href="style.css?v=9" />
+  <style>
+    .appLayout { display:flex; gap:24px; }
+    #rightSidebar { width: 280px; min-width: 280px; display:none;
+      background: rgba(12,14,22,.7); border:1px solid var(--stroke);
+      border-radius: 16px; padding: 12px; height: fit-content; }
+    #userList { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+    .userItem { display:flex; justify-content:space-between; align-items:center;
+      padding:10px 12px; border:1px solid var(--stroke); border-radius:12px;
+      background: rgba(22,24,32,.55); cursor:pointer; }
+    .userItem:hover { background: rgba(32,36,50,.65); }
+    .badge { font-size: 11px; padding: 2px 6px; border-radius:999px; border:1px solid var(--stroke); opacity:.7 }
+    #drawerOverlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index: 50; }
+    #drawer { position:fixed; top:0; right:-420px; width:420px; height:100%;
+      background:#0d0f16; border-left:1px solid var(--stroke);
+      box-shadow: -12px 0 40px rgba(0,0,0,.45);
+      transition:right .28s ease; z-index: 51; padding:16px 16px 24px 16px; overflow:auto; }
+    #drawer.open { right:0; } #drawerOverlay.open { display:block; }
+    .drawerHeader { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;}
+    .drawerTitle { font-weight:800; font-size:18px; }
+    .closeX { border:1px solid var(--stroke); background:transparent; border-radius:10px; padding:4px 10px; cursor:pointer; }
+
+    /* admin action box */
+    #adminActions { margin:8px 0 14px; padding:10px; border:1px solid var(--stroke); border-radius:12px; background:rgba(255,255,255,.03) }
+    #adminActions .btnRow { display:flex; gap:8px; flex-wrap:wrap; }
+    #adminTempVal { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin-top:8px }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>YouTube to MP3</h1>
+
+    <!-- LOGIN -->
+    <section id="view-login" class="card" style="display:none">
+      <form id="login-form" autocomplete="off">
+        <input type="text" class="hidden-input" autocomplete="username" />
+        <input type="password" class="hidden-input" autocomplete="current-password" />
+        <div class="row">
+          <label for="login-username">Username</label>
+          <input id="login-username" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row"><button id="btn-login" class="primary" type="submit">Log In</button></div>
+      </form>
+      <div class="row muted">Not registered yet? <span id="link-to-register" class="link">Create account</span></div>
+      <p id="login-msg" class="error hidden"></p>
+    </section>
+
+    <!-- REGISTER -->
+    <section id="view-register" class="card" style="display:none">
+      <form id="register-form" autocomplete="off">
+        <input type="text" class="hidden-input" autocomplete="username" />
+        <input type="password" class="hidden-input" autocomplete="new-password" />
+        <div class="row">
+          <label for="reg-username">Choose a username</label>
+          <input id="reg-username" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row">
+          <label for="reg-password">Choose a password</label>
+          <input id="reg-password" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+        </div>
+        <div class="row"><button id="btn-register" class="primary" type="submit">Create</button></div>
+      </form>
+      <div class="row"><button id="link-to-login" class="outline">Back to Log In</button></div>
+      <p id="register-msg" class="error hidden"></p>
+      <p id="register-ok" class="success hidden">Account created. You can now log in.</p>
+    </section>
+
+    <!-- APP -->
+    <section id="view-app" class="card" style="display:none">
+      <div class="appLayout">
+        <div style="flex:1; min-width: 520px;">
+          <div class="toolbar">
+            <small id="whoami"></small>
+            <button id="btn-logout" class="danger" style="max-width:120px">Logout</button>
+          </div>
+
+          <div class="row">
+            <strong>My Downloads</strong>
+            <div id="myDownloadsGrid"></div>
+          </div>
+
+          <div class="row">
+            <label for="yt-url">YouTube URL</label>
+            <input id="yt-url" placeholder="https://www.youtube.com/watch?v=..." />
+          </div>
+          <div class="row"><button id="btn-download" class="primary">Download</button></div>
+          <div class="row"><button id="btn-status" class="outline">Check Status</button></div>
+          <div class="row"><button id="btn-get" disabled>Get MP3</button></div>
+          <div class="row"><button id="btn-delete" class="outline">Delete</button></div>
+
+          <p id="app-msg" class="error hidden"></p>
+          <p id="app-ok" class="success hidden"></p>
+        </div>
+
+        <!-- RIGHT SIDEBAR -->
+        <aside id="rightSidebar">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <strong>All Users</strong>
+            <span class="badge" id="youBadge">you</span>
+          </div>
+          <input id="userSearch" placeholder="Search user…" style="width:100%;margin-bottom:8px;">
+          <ul id="userList"></ul>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- Drawer -->
+  <div id="drawerOverlay"></div>
+  <div id="drawer">
+    <div class="drawerHeader">
+      <div class="drawerTitle" id="drawerTitle">Downloads</div>
+      <button class="closeX" id="drawerClose">Close</button>
+    </div>
+
+    <!-- Admin-only actions appear here if you are admin -->
+    <div id="adminActions" style="display:none">
+      <div class="row"><strong>Admin actions</strong></div>
+      <div class="btnRow">
+        <button id="btnSetTemp" class="btnSmall">Set Temp Password</button>
+        <button id="btnShowTemp" class="btnSmall">Show Temp Password</button>
+      </div>
+      <div class="row">
+        <div class="tempPwdLabel muted">Temp password (if available):</div>
+        <div id="adminTempVal" class="tempPwdVal"></div>
+      </div>
+    </div>
+
+    <div id="drawerBody"></div>
+  </div>
+
+  <script src="script.js?v=9"></script>
+</body>
+</html>
