@@ -320,6 +320,21 @@ button, .btnSmall, .btnTiny{ min-height: 44px; } /* WCAG touch target */
   }
 }
 
+/* --- Mobile layout fixes --- */
+@media (max-width: 900px){
+  .appLayout{ display:block; }
+  .container{ padding: 0 12px; }         /* a bit tighter on phones */
+  .grow{ min-width: 0; }                  /* <-- remove the 520px constraint */
+  #myDownloadsGrid{
+    grid-template-columns: 1fr !important;/* force single column */
+    gap: 12px;
+  }
+  .dlCard{ margin: 0; }
+}
+
+/* extra safety: prevent long titles from pushing width */
+.dlTitle{ overflow-wrap:anywhere; word-break:break-word; }
+
 /* Dark+blue scrollbar already added — it will apply to .resultsScroll */
 
 

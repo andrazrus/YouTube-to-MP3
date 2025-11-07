@@ -453,6 +453,31 @@ async function loadUsersList(){  // now: fetch users + index downloads into the 
   }
 }
 
+function groupByTitle(videos){
+  const groups = new Map();
+  for (const v of videos){
+    const key = (v.filename || "").trim().toLowerCase();
+    if (!key) continue;
+    const g = groups.get(key) || { title: v.filename, items: [] };
+    g.items.push(v);
+    groups.set(key, g);
+  }
+  const reps = [];
+  groups.forEach(g => {
+    const byTime = (a,b)=> new Date(b.timestamp) - new Date(a.timestamp);
+    const ready = g.items.filter(i => i.status === "ready").sort(byTime);
+    const pick  = ready[0] || g.items.sort(byTime)[0];  // prefer READY, else newest
+    const owners = Array.from(new Set(g.items.map(i => i.owner_username).filter(Boolean)));
+    reps.push({
+      ...pick,
+      __copies: g.items.length,
+      __owners: owners
+    });
+  });
+  reps.sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
+  return reps;
+}
+
 function renderSearchResults(){
   const box = $("searchResults"); if(!box) return;
   const term = __searchTerm;
@@ -461,12 +486,16 @@ function renderSearchResults(){
     !term || (u.username||"").toLowerCase().includes(term)
   );
 
-  const videos = (__downloadsCache || []).filter(v => {
+  // filter first
+  const filteredVideos = (__downloadsCache || []).filter(v => {
     if (!term) return true;
     const title = (v.filename || "").toLowerCase();
     const owner = (v.owner_username || "").toLowerCase();
     return title.includes(term) || owner.includes(term);
   });
+
+  // 👇 when searching, dedupe by title; otherwise keep full list
+  const videos = term ? groupByTitle(filteredVideos) : filteredVideos;
 
   // Build HTML
   const userHtml = users.length
@@ -479,10 +508,16 @@ function renderSearchResults(){
     : "";
 
   const vidHtml = videos.length
-    ? `<div class="resultMeta" style="margin-top:6px;">Downloads (${videos.length}${isAdmin?' • all':''})</div>` +
+    ? `<div class="resultMeta" style="margin-top:6px;">Downloads (${videos.length}${isAdmin?' • all':''}${term?' • deduped':''})</div>` +
       videos.map(v=>{
         const ts = new Date(v.timestamp).toLocaleString();
-        const owner = v.owner_username ? ` • by ${escapeHtml(v.owner_username)}` : "";
+        const copies = v.__copies && v.__copies > 1 ? ` • ${v.__copies} copies` : "";
+        // if grouped, show number of owners; else show the single owner
+        const ownerBadge = v.__owners
+          ? (v.__owners.length > 1
+              ? ` • ${v.__owners.length} users`
+              : (v.__owners[0] ? ` • by ${escapeHtml(v.__owners[0])}` : ""))
+          : (v.owner_username ? ` • by ${escapeHtml(v.owner_username)}` : "");
         const ready = v.status === "ready";
         const dlBtn = ready
           ? `<button type="button" class="btnTiny primary" data-dla="${v.id}" data-fname="${encodeURIComponent(v.filename||'download.mp3')}">Download</button>`
@@ -490,7 +525,7 @@ function renderSearchResults(){
         return `
           <div class="resultCard">
             <div class="resultTitle">${escapeHtml(v.filename || "(processing)")}</div>
-            <div class="resultMeta">${ts} • Status: ${escapeHtml(v.status)}${owner}</div>
+            <div class="resultMeta">${ts} • Status: ${escapeHtml(v.status)}${ownerBadge}${copies}</div>
             <div class="resultBtns">
               <button type="button" class="btnTiny" data-sta="${v.id}">Status</button>
               ${dlBtn}
@@ -506,18 +541,15 @@ function renderSearchResults(){
   box.innerHTML = userHtml + vidHtml + emptyHtml;
 
   // wire actions
-  // open drawer with that user's downloads
   box.querySelectorAll("[data-user]").forEach(el=>{
     el.addEventListener("click", ()=> openUserDrawer(el.getAttribute("data-user")));
   });
-  // status in sidebar
   box.querySelectorAll("[data-sta]").forEach(el=>{
     el.addEventListener("click", async ()=>{
       try { const st = await api(`/status/${el.getAttribute("data-sta")}`); alert(st.ready ? "Ready" : "Still processing…"); }
       catch(e){ alert(e.message); }
     });
   });
-  // direct download in sidebar
   box.querySelectorAll("[data-dla]").forEach(el=>{
     el.addEventListener("click", ()=>{
       const id = el.getAttribute("data-dla");
@@ -527,6 +559,7 @@ function renderSearchResults(){
     });
   });
 }
+
 
 
 
