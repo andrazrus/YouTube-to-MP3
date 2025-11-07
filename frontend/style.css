@@ -337,9 +337,19 @@ button, .btnSmall, .btnTiny{ min-height: 44px; } /* WCAG touch target */
 
 /* Dark+blue scrollbar already added — it will apply to .resultsScroll */
 
+/* Reorder blocks on phones: put converter above downloads */
+@media (max-width: 900px){
+  .grow{
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #convertBlock{ order: -1; }   /* show first */
+  #downloadsBlock{ order: 0; }
 
-
-
+  /* optional: tighten spacing for the converter on mobile */
+  #convertBlock .row{ margin: 10px 0; }
+}
 
 
 

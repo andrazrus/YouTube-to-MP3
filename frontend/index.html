@@ -4,12 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>YouTube to MP3</title>
-  <link rel="stylesheet" href="style.css?v=16" />
+  <link rel="stylesheet" href="style.css?v=17" />
 </head>
 <body>
   <div class="container">
     <h1>YouTube to MP3</h1>
 
+    <!-- Mobile top button to open the right sidebar -->
     <div class="mobileBar">
       <button id="mobileSidebarBtn" class="btnTiny">Search & Users</button>
     </div>
@@ -123,27 +124,34 @@
 
       <div class="appLayout">
         <div class="grow">
-          <div class="row" style="display:flex;align-items:center;gap:12px;">
-            <strong>My Downloads</strong>
-            <label id="showAllWrap" class="toggle-inline">
-              <input id="toggle-all" type="checkbox" />
-              <span>Show every download</span>
-            </label>
+
+          <!-- Converter block (we’ll move this above downloads on mobile via CSS) -->
+          <div id="convertBlock">
+            <div class="row" style="margin-top:14px">
+              <label for="yt-url">YouTube URL</label>
+              <input id="yt-url" placeholder="https://www.youtube.com/watch?v=..." />
+            </div>
+            <div class="row"><button id="btn-download" class="primary" type="button">Convert to MP3</button></div>
+            <div class="row"><button id="btn-status" class="outline" type="button">Check Status</button></div>
+            <div class="row"><button id="btn-get" class="primary" disabled type="button">Download</button></div>
+            <div class="row"><button id="btn-delete" class="outline" type="button">Delete</button></div>
+
+            <p id="app-msg" class="error hidden"></p>
+            <p id="app-ok" class="success hidden"></p>
           </div>
 
-          <div id="myDownloadsGrid"></div>
-
-          <div class="row" style="margin-top:14px">
-            <label for="yt-url">YouTube URL</label>
-            <input id="yt-url" placeholder="https://www.youtube.com/watch?v=..." />
+          <!-- Downloads block -->
+          <div id="downloadsBlock">
+            <div class="row" style="display:flex;align-items:center;gap:12px;">
+              <strong>My Downloads</strong>
+              <label id="showAllWrap" class="toggle-inline">
+                <input id="toggle-all" type="checkbox" />
+                <span>Show every download</span>
+              </label>
+            </div>
+            <div id="myDownloadsGrid"></div>
           </div>
-          <div class="row"><button id="btn-download" class="primary" type="button">Convert to MP3</button></div>
-          <div class="row"><button id="btn-status" class="outline" type="button">Check Status</button></div>
-          <div class="row"><button id="btn-get" class="primary" disabled type="button">Download</button></div>
-          <div class="row"><button id="btn-delete" class="outline" type="button">Delete</button></div>
 
-          <p id="app-msg" class="error hidden"></p>
-          <p id="app-ok" class="success hidden"></p>
         </div>
 
         <!-- RIGHT SIDEBAR -->
@@ -157,17 +165,16 @@
             <strong>All Users</strong>
             <span id="youBadge" class="badge">you</span>
           </div>
-          
 
           <input id="userSearch" placeholder="Search user or title…" />
 
-  <!-- scrollable results live here -->
+          <!-- Scrollable combined results (users + downloads) -->
           <div id="searchResults" class="resultsScroll"></div>
         </aside>
-          </div>
+      </div>
     </section>
 
-    <!-- ADMIN PANEL (no temp/audit tabs) -->
+    <!-- ADMIN PANEL -->
     <section id="view-admin" class="card admin-panel" style="display:none">
       <div class="admin-bar">
         <strong>Users</strong>
@@ -195,7 +202,7 @@
     </section>
   </div>
 
-  <!-- Drawer -->
+  <!-- Overlay & Drawer (reused for sidebar overlay on mobile) -->
   <div id="drawerOverlay"></div>
   <div id="drawer">
     <div class="drawerHeader">
@@ -205,6 +212,6 @@
     <div id="drawerBody"></div>
   </div>
 
-  <script src="script.js?v=16"></script>
+  <script src="script.js?v=17"></script>
 </body>
 </html>
