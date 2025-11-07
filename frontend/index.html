@@ -10,6 +10,10 @@
   <div class="container">
     <h1>YouTube to MP3</h1>
 
+    <div class="mobileBar">
+      <button id="mobileSidebarBtn" class="btnTiny">Search & Users</button>
+    </div>
+
     <!-- LOGIN -->
     <section id="view-login" class="card" style="display:none">
       <form id="login-form" autocomplete="off">
@@ -144,10 +148,16 @@
 
         <!-- RIGHT SIDEBAR -->
         <aside id="rightSidebar">
+          <div class="mobileSideHeader">
+            <strong>Browse</strong>
+            <button id="rightSidebarClose" class="btnTiny">Close</button>
+          </div>
+
           <div class="sidehdr">
             <strong>All Users</strong>
             <span id="youBadge" class="badge">you</span>
           </div>
+          
 
           <input id="userSearch" placeholder="Search user or title…" />
 

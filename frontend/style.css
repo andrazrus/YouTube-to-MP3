@@ -249,6 +249,78 @@ input[type="checkbox"]{
   padding: 8px;
 }
 
+/* ---------- Mobile-first improvements ---------- */
+
+/* Make headings and buttons a touch friendlier */
+h1{ font-size: clamp(28px, 6vw, 48px); }
+button, .btnSmall, .btnTiny{ min-height: 44px; } /* WCAG touch target */
+
+/* Keep the top helper bar tidy */
+.mobileBar{ display:none; margin:8px 0 6px; }
+.mobileSideHeader{
+  display:none; /* only show inside mobile drawer */
+  align-items:center; justify-content:space-between; gap:8px;
+  margin-bottom:8px;
+}
+
+/* Let the downloads grid breathe on narrow screens */
+#myDownloadsGrid{
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* Off-canvas sidebar for mobile */
+@media (max-width: 900px){
+  .appLayout{ display:block; }                /* stack everything */
+  .mobileBar{ display:flex; justify-content:flex-end; }
+
+  /* Turn sidebar into a drawer */
+  #rightSidebar{
+    position: fixed;
+    top: 0; right: -88vw;                      /* hidden off screen */
+    width: 88vw; max-width: 420px; height: 100dvh;
+    z-index: 60;
+    transition: right .28s ease;
+    border-radius: 0;
+    padding: 12px;
+    backdrop-filter: blur(4px);
+  }
+  #rightSidebar.mobile-open{ right: 0; }
+
+  /* show the drawer header in mobile */
+  .mobileSideHeader{ display:flex; }
+
+  /* Reuse the global overlay you already have */
+  #drawerOverlay{ z-index: 55; }               /* sits under the sidebar */
+
+  /* Make the results area use viewport height */
+  .resultsScroll{
+    max-height: calc(100dvh - 160px);
+    padding-bottom: 12px;
+  }
+
+  /* Inputs/buttons look too wide by default — let them fill the drawer nicely */
+  input:not([type="checkbox"]){ font-size: 16px; } /* avoid iOS zoom */
+}
+
+/* Slightly denser cards on very small phones */
+@media (max-width: 380px){
+  .dlCard{ padding:10px; }
+  .btnRow{ gap:6px; }
+  .btnSmall{ padding:8px 8px; }
+}
+
+/* Optional: keep the top toolbar sticky on mobile for quick access */
+@media (max-width: 900px){
+  .toolbar{
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(12,14,22,.75);
+    backdrop-filter: blur(6px);
+    padding: 10px 8px; margin: -10px -8px 8px;
+    border-bottom: 1px solid var(--stroke);
+  }
+}
+
+/* Dark+blue scrollbar already added — it will apply to .resultsScroll */
 
 
 

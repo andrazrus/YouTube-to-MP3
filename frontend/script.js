@@ -235,6 +235,35 @@ function wireStaticHandlers(){
   has("toggle-all") && $("toggle-all").addEventListener("change", loadDownloads);
 }
 
+// Mobile sidebar controls
+(function(){
+  const btn = document.getElementById("mobileSidebarBtn");
+  const side = document.getElementById("rightSidebar");
+  const close = document.getElementById("rightSidebarClose");
+  const overlay = document.getElementById("drawerOverlay"); // you already have this
+
+  function openSide(){
+    if (!side) return;
+    side.classList.add("mobile-open");
+    overlay && overlay.classList.add("open");
+  }
+  function closeSide(){
+    if (!side) return;
+    side.classList.remove("mobile-open");
+    overlay && overlay.classList.remove("open");
+  }
+
+  btn && btn.addEventListener("click", openSide);
+  close && close.addEventListener("click", closeSide);
+  overlay && overlay.addEventListener("click", closeSide);
+
+  // Optional: close on ESC
+  window.addEventListener("keydown", (e)=>{
+    if (e.key === "Escape") closeSide();
+  });
+})();
+
+
 // ---------- App UI ----------
 function initAppUI(){
   $("whoami") && ( $("whoami").textContent = username ? `Logged in as ${username}` : "" );
