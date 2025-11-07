@@ -5,7 +5,8 @@
 // ---------- Config ----------
 const API = `${location.protocol}//${location.hostname}:8000`;
 
-const ALWAYS_REQUIRE_LOGIN = true; // keeps reload -> login
+const PERSIST_LOGINS = true;   // enable localStorage-based auto-login
+const PERSIST_ADMINS = false;  // admins should NOT be remembered
 
 
 
@@ -137,9 +138,11 @@ async function startDownload(url, suggestedName) {
 }
 
 // ---------- State ----------
-window.__token = ALWAYS_REQUIRE_LOGIN ? "" : (localStorage.getItem("ytmp3_token") || "");
-let username = ALWAYS_REQUIRE_LOGIN ? "" : (localStorage.getItem("ytmp3_user") || "");
-let isAdmin  = ALWAYS_REQUIRE_LOGIN ? false : (localStorage.getItem("ytmp3_admin") === "true");
+window.__token = PERSIST_LOGINS ? (localStorage.getItem("ytmp3_token") || "") : "";
+let username   = PERSIST_LOGINS ? (localStorage.getItem("ytmp3_user")  || "") : "";
+let isAdmin    = PERSIST_LOGINS ? (localStorage.getItem("ytmp3_admin") === "true") : false;
+
+
 let fileId = null, filename = null;
 
 let __usersCache = [];
@@ -153,10 +156,26 @@ const pollers = new Map(); // id -> intervalId
 async function boot(){
   try{
     if(window.__token){
-      const me=await api("/me");
-      username=me.user; isAdmin=!!me.is_admin;
-      localStorage.setItem("ytmp3_user",username);
-      localStorage.setItem("ytmp3_admin",String(isAdmin));
+      const me = await api("/me");
+      username = me.user; 
+      isAdmin  = !!me.is_admin;
+
+      // 🔒 If this is an admin and we don't persist admins, dump the token and go to login.
+      if (isAdmin && (!PERSIST_ADMINS || !PERSIST_LOGINS)) {
+        window.__token = ""; username=""; isAdmin=false;
+        localStorage.removeItem("ytmp3_token");
+        localStorage.removeItem("ytmp3_user");
+        localStorage.removeItem("ytmp3_admin");
+        show("view-login");
+        wireStaticHandlers();
+        return;
+      }
+
+      // Normal user OR admins allowed to persist
+      if (PERSIST_LOGINS) {
+        localStorage.setItem("ytmp3_user", username);
+        localStorage.setItem("ytmp3_admin", String(isAdmin));
+      }
       initAppUI(); show("view-app");
       await Promise.all([loadDownloads(), loadUsersList()]);
       wireStaticHandlers();
@@ -176,10 +195,15 @@ async function handleLogin(e){
   try{
     const data=await api("/login",{method:"POST",body:JSON.stringify({username:u,password:p})});
     window.__token=data.token; username=data.user; isAdmin=!!data.is_admin;
-    if(!ALWAYS_REQUIRE_LOGIN){
-      localStorage.setItem("ytmp3_token",window.__token);
-      localStorage.setItem("ytmp3_user",username);
-      localStorage.setItem("ytmp3_admin",String(isAdmin));
+    if (PERSIST_LOGINS && (!isAdmin || PERSIST_ADMINS)) {
+      localStorage.setItem("ytmp3_token", window.__token);
+      localStorage.setItem("ytmp3_user",  username);
+      localStorage.setItem("ytmp3_admin", String(isAdmin));
+    } else {
+      // Ensure nothing is left in storage for admins
+      localStorage.removeItem("ytmp3_token");
+      localStorage.removeItem("ytmp3_user");
+      localStorage.removeItem("ytmp3_admin");
     }
     initAppUI(); show("view-app");
     $("yt-url") && ($("yt-url").value="");
