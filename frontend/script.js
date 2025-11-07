@@ -1,14 +1,8 @@
-
-
-
-
 // ---------- Config ----------
 const API = `${location.protocol}//${location.hostname}:8000`;
 
 const PERSIST_LOGINS = true;   // enable localStorage-based auto-login
 const PERSIST_ADMINS = false;  // admins should NOT be remembered
-
-
 
 
 // ---------- Helpers ----------
@@ -142,7 +136,6 @@ window.__token = PERSIST_LOGINS ? (localStorage.getItem("ytmp3_token") || "") : 
 let username   = PERSIST_LOGINS ? (localStorage.getItem("ytmp3_user")  || "") : "";
 let isAdmin    = PERSIST_LOGINS ? (localStorage.getItem("ytmp3_admin") === "true") : false;
 
-
 let fileId = null, filename = null;
 
 let __usersCache = [];
@@ -160,7 +153,7 @@ async function boot(){
       username = me.user; 
       isAdmin  = !!me.is_admin;
 
-      // 🔒 If this is an admin and we don't persist admins, dump the token and go to login.
+      // 🔒 If admin and we don't persist admins, dump the token and go to login.
       if (isAdmin && (!PERSIST_ADMINS || !PERSIST_LOGINS)) {
         window.__token = ""; username=""; isAdmin=false;
         localStorage.removeItem("ytmp3_token");
@@ -195,16 +188,18 @@ async function handleLogin(e){
   try{
     const data=await api("/login",{method:"POST",body:JSON.stringify({username:u,password:p})});
     window.__token=data.token; username=data.user; isAdmin=!!data.is_admin;
+
+    // Persist only when enabled; never persist admins if PERSIST_ADMINS=false
     if (PERSIST_LOGINS && (!isAdmin || PERSIST_ADMINS)) {
       localStorage.setItem("ytmp3_token", window.__token);
       localStorage.setItem("ytmp3_user",  username);
       localStorage.setItem("ytmp3_admin", String(isAdmin));
     } else {
-      // Ensure nothing is left in storage for admins
       localStorage.removeItem("ytmp3_token");
       localStorage.removeItem("ytmp3_user");
       localStorage.removeItem("ytmp3_admin");
     }
+
     initAppUI(); show("view-app");
     $("yt-url") && ($("yt-url").value="");
     await Promise.all([loadDownloads(), loadUsersList()]);
@@ -250,8 +245,6 @@ function wireStaticHandlers(){
     localStorage.removeItem("ytmp3_user");
     localStorage.removeItem("ytmp3_admin");
     $("yt-url") && ($("yt-url").value="");
-
-    // purge any autofill and bounce to login
     show("view-login");
   });
 
@@ -273,7 +266,7 @@ function wireStaticHandlers(){
   const btn = document.getElementById("mobileSidebarBtn");
   const side = document.getElementById("rightSidebar");
   const close = document.getElementById("rightSidebarClose");
-  const overlay = document.getElementById("drawerOverlay"); // you already have this
+  const overlay = document.getElementById("drawerOverlay");
 
   function openSide(){
     if (!side) return;
@@ -309,8 +302,8 @@ function initAppUI(){
   const chk  = $("toggle-all");
   if (wrap) wrap.style.display = isAdmin ? "flex" : "none";
   if (!isAdmin && chk) {
-    chk.checked = false;            // ensure off for non-admin
-    chk.disabled = true;            // prevent tabbing/interactions
+    chk.checked = false;
+    chk.disabled = true;
   } else if (isAdmin && chk) {
     chk.disabled = false;
   }
@@ -329,7 +322,7 @@ async function loadDownloads(){
     const items = await api(endpoint);
 
     __downloadsCache = items || [];
-    renderDownloads(); // render with current __searchTerm
+    renderDownloads();
   }catch(e){
     grid.innerHTML=`<div class='dlCard'>${escapeHtml(e.message)}</div>`;
   }
@@ -345,7 +338,7 @@ function renderDownloads(){
     if (!term) return true;
     const title = (it.filename || "").toLowerCase();
     const owner = (it.owner_username || "").toLowerCase();
-    return title.includes(term) || owner.includes(term);  // case-insensitive
+    return title.includes(term) || owner.includes(term);
   });
 
   if(!items.length){
@@ -458,20 +451,15 @@ async function onGetDirect(){
 }
 
 // ---------- Users sidebar + drawer ----------
-async function loadUsersList(){  // now: fetch users + index downloads into the panel
+async function loadUsersList(){  // everyone sees users + global downloads feed
   const box = $("searchResults"), search = $("userSearch");
   if (!box) return;
   box.innerHTML = `<div class="resultItem"><span class="resultMeta">Loading…</span></div>`;
 
   try{
-    // everyone can see users
     __usersCache = await api("/users");
-
-    // downloads to search:
-    // - admin: ALL via /videos
-    // - non-admin: only own via /my_downloads
-    __downloadsCache = await api("/videos");
-    renderSearchResults(); // initial render
+    __downloadsCache = await api("/videos"); // all downloads for global search
+    renderSearchResults();
   }catch(e){
     box.innerHTML = `<div class="resultItem"><span class="resultMeta">${escapeHtml(e.message)}</span></div>`;
     return;
@@ -499,7 +487,7 @@ function groupByTitle(videos){
   groups.forEach(g => {
     const byTime = (a,b)=> new Date(b.timestamp) - new Date(a.timestamp);
     const ready = g.items.filter(i => i.status === "ready").sort(byTime);
-    const pick  = ready[0] || g.items.sort(byTime)[0];  // prefer READY, else newest
+    const pick  = ready[0] || g.items.sort(byTime)[0];
     const owners = Array.from(new Set(g.items.map(i => i.owner_username).filter(Boolean)));
     reps.push({
       ...pick,
@@ -519,7 +507,6 @@ function renderSearchResults(){
     !term || (u.username||"").toLowerCase().includes(term)
   );
 
-  // filter first
   const filteredVideos = (__downloadsCache || []).filter(v => {
     if (!term) return true;
     const title = (v.filename || "").toLowerCase();
@@ -527,10 +514,8 @@ function renderSearchResults(){
     return title.includes(term) || owner.includes(term);
   });
 
-  // 👇 when searching, dedupe by title; otherwise keep full list
   const videos = term ? groupByTitle(filteredVideos) : filteredVideos;
 
-  // Build HTML
   const userHtml = users.length
     ? `<div class="resultMeta">Users (${users.length})</div>` +
       users.map(u => `
@@ -545,7 +530,6 @@ function renderSearchResults(){
       videos.map(v=>{
         const ts = new Date(v.timestamp).toLocaleString();
         const copies = v.__copies && v.__copies > 1 ? ` • ${v.__copies} copies` : "";
-        // if grouped, show number of owners; else show the single owner
         const ownerBadge = v.__owners
           ? (v.__owners.length > 1
               ? ` • ${v.__owners.length} users`
@@ -594,8 +578,7 @@ function renderSearchResults(){
 }
 
 
-
-
+// ---------- Drawer ----------
 const drawer=$("drawer"), drawerOverlay=$("drawerOverlay");
 function drawerOpen(){ drawer?.classList.add("open"); drawerOverlay?.classList.add("open"); }
 function drawerClose(){ drawer?.classList.remove("open"); drawerOverlay?.classList.remove("open"); $("drawerBody") && ( $("drawerBody").innerHTML="" ); $("drawerTitle") && ( $("drawerTitle").textContent="Downloads" ); }
@@ -679,7 +662,6 @@ async function renderAdminTable(){
         const res = await api(`/users/${encodeURIComponent(b.dataset.user)}/reset_password`, {
           method: "POST", body: JSON.stringify({ new_password: pw || null, generate: !pw })
         });
-        // show the *new* password once so admin can pass it to the user
         alert(`Password for "${b.dataset.user}" set to:\n\n${res.temp_password}`);
         await renderAdminTable();
       } catch (err) { alert(err.message); }

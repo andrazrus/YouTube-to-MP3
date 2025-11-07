@@ -83,7 +83,53 @@ class PwAudit(Base):
 Base.metadata.create_all(bind=engine)
 
 # --- tiny auto-migrations for SQLite ---
-with engine.connect() as conn:
+# --- tiny auto-migrations for SQLite ---
+with engine.begin() as conn:
+    # users
+    cols_users = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
+    if "enc_password" not in cols_users:
+        conn.exec_driver_sql("ALTER TABLE users ADD COLUMN enc_password TEXT;")
+    if "reset_word_hash" not in cols_users:
+        conn.exec_driver_sql("ALTER TABLE users ADD COLUMN reset_word_hash TEXT;")
+
+    # videos
+    cols_vid = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(videos)").fetchall()]
+    if "owner_username" not in cols_vid:
+        conn.exec_driver_sql("ALTER TABLE videos ADD COLUMN owner_username TEXT;")
+
+    # required tables
+    conn.exec_driver_sql("""
+        CREATE TABLE IF NOT EXISTS tokens(
+            token TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            created_at TEXT
+        )
+    """)
+    conn.exec_driver_sql("""
+        CREATE TABLE IF NOT EXISTS temp_passwords(
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            enc_temp TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            revealed INTEGER DEFAULT 0,
+            created_by TEXT NOT NULL,
+            created_at TEXT
+        )
+    """)
+    conn.exec_driver_sql("""
+        CREATE TABLE IF NOT EXISTS pw_audit(
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            action TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            at TEXT,
+            details TEXT
+        )
+    """)
+
+    # wipe sessions on server start (after table exists)
+    conn.exec_driver_sql("DELETE FROM tokens")
+
     cols_users = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
     if "enc_password" not in cols_users:
         conn.exec_driver_sql("ALTER TABLE users ADD COLUMN enc_password TEXT;")
