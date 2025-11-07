@@ -79,7 +79,16 @@ function show(viewId){
     const el=$(id); if(el) el.style.display="none";
   });
   const t=$(viewId); if(t) t.style.display="";
-  if (viewId==="view-login") resetLoginForm();
+
+  // show the mobile bar ONLY on mobile AND only in the app view
+  const mb = document.querySelector(".mobileBar");
+  if (mb) {
+    const isMobile = window.matchMedia("(max-width: 900px)").matches;
+    const shouldShow = (viewId === "view-app") && isMobile;
+    mb.classList.toggle("hidden-mobile", !shouldShow);
+  }
+
+  if (viewId === "view-login") resetLoginForm();
 }
 
 // ---------- API (with 401 auto-logout) ----------

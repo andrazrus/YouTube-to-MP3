@@ -351,5 +351,13 @@ button, .btnSmall, .btnTiny{ min-height: 44px; } /* WCAG touch target */
   #convertBlock .row{ margin: 10px 0; }
 }
 
+/* hidden by default */
+.mobileBar { display: none; }
 
+/* only show on small screens (JS will still be able to hide it) */
+@media (max-width: 900px){
+  .mobileBar { display: block; }
+}
 
+/* utility so JS can force-hide even on mobile */
+.hidden-mobile { display: none !important; }
