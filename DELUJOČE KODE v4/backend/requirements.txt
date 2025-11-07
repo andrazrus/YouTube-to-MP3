@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+passlib          # PBKDF2 is built-in; no bcrypt extra needed
+yt-dlp

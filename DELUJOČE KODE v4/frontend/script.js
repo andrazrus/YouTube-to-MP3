@@ -1,14 +1,6 @@
-
-
-
-
 // ---------- Config ----------
-const API = `${location.protocol}//${location.hostname}:8000`;
-
+const API = "http://localhost:8000";
 const ALWAYS_REQUIRE_LOGIN = true; // keeps reload -> login
-
-
-
 
 // ---------- Helpers ----------
 const $ = (id) => document.getElementById(id);

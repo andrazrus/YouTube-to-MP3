@@ -13,13 +13,12 @@ from cryptography.fernet import Fernet
 
 # -------------------- App & CORS --------------------
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # or list your exact origins if you prefer
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=False,      # <-- important for "*" origin
     expose_headers=["Content-Disposition"],
 )
 
