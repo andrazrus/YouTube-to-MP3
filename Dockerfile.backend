@@ -1,13 +1,14 @@
 # Dockerfile.backend
 FROM python:3.11-slim
 
+# ffmpeg is needed; certs help SSL inside container
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# 1) install python deps
+# 1) install python deps (make sure yt-dlp is in requirements.txt)
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
