@@ -365,7 +365,7 @@ async function onConvert(){
   try{
     const data=await api("/download",{method:"POST",body:JSON.stringify({url})});
     fileId=data.file_id; filename=data.filename; $("btn-get") && ($("btn-get").disabled=false);
-    text($("app-ok"),"Processing started…");
+    text($("app-ok"),"The link is ready for the download.");
     startPoller(fileId);
     await loadDownloads();
   }catch(e){ text($("app-msg"), e.message); }

@@ -39,18 +39,29 @@ final class APIClient {
     private func send<Out: Decodable>(_ req: URLRequest) async throws -> Out {
         let (data, resp) = try await urlSession.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw APIError.custom("No HTTP response") }
-        guard (200..<300).contains(http.statusCode) else { throw APIError.badStatus(http.statusCode) }
-        do { return try JSONDecoder().decode(Out.self, from: data) } catch { throw APIError.decodeFailed }
+
+        // Friendly message for wrong creds / unauthorized
+        if http.statusCode == 401 || http.statusCode == 403 {
+            throw APIError.custom("Invalid username or password.\n\nTo reset your password please use the PC.")
+        }
+
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.badStatus(http.statusCode)
+        }
+        do { return try JSONDecoder().decode(Out.self, from: data) }
+        catch { throw APIError.decodeFailed }
     }
 
     // MARK: - Auth
     func login(username: String, password: String) async throws -> LoginResponse {
-        let req = try makeRequest(path: "/login", method: "POST", body: LoginRequest(username: username, password: password))
+        let req = try makeRequest(path: "/login", method: "POST",
+                                  body: LoginRequest(username: username, password: password))
         return try await send(req)
     }
 
     func register(username: String, password: String, resetWord: String?) async throws {
-        let req = try makeRequest(path: "/register", method: "POST", body: RegisterRequest(username: username, password: password, reset_word: resetWord))
+        let req = try makeRequest(path: "/register", method: "POST",
+                                  body: RegisterRequest(username: username, password: password, reset_word: resetWord))
         struct Ok: Decodable {}
         let _: Ok = try await send(req)
     }
@@ -62,7 +73,8 @@ final class APIClient {
 
     // MARK: - Videos
     func startDownload(youtubeURL: String, token: String) async throws -> DownloadStartResponse {
-        let req = try makeRequest(path: "/download", method: "POST", token: token, body: VideoRequest(url: youtubeURL))
+        let req = try makeRequest(path: "/download", method: "POST", token: token,
+                                  body: VideoRequest(url: youtubeURL))
         return try await send(req)
     }
 
@@ -83,7 +95,7 @@ final class APIClient {
         let _: Ok = try await send(req)
     }
 
-    // Direct file download
+    // MARK: - File download
     func downloadURL(fileId: String, token: String) -> URL {
         let tokenQS = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token
         return URL(string: "\(API_BASE)/download/\(fileId)?token=\(tokenQS)")!
@@ -91,13 +103,13 @@ final class APIClient {
 
     @discardableResult
     func downloadFile(fileId: String, token: String) async throws -> (localURL: URL, suggestedName: String) {
-        let url = downloadURL(fileId: fileId, token: token)
-        let req = URLRequest(url: url)
+        let req = URLRequest(url: downloadURL(fileId: fileId, token: token))
         let (data, resp) = try await urlSession.data(for: req)
-        guard let http = resp as? HTTPURLResponse, http.statusCode == 200
-        else { throw APIError.badStatus((resp as? HTTPURLResponse)?.statusCode ?? -1) }
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw APIError.badStatus((resp as? HTTPURLResponse)?.statusCode ?? -1)
+        }
 
-        // Parse filename
+        // best-effort filename
         let filename: String = {
             guard let disp = http.value(forHTTPHeaderField: "Content-Disposition") else { return "\(fileId).mp3" }
             if let r = disp.range(of: "filename*=") {

@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - Brand Colors (match your web CSS)
 extension Color {
     static let appBgTop      = Color(red: 0x11/255, green: 0x15/255, blue: 0x28/255)
     static let appBgMain     = Color(red: 0x0b/255, green: 0x0d/255, blue: 0x14/255)
@@ -10,12 +9,11 @@ extension Color {
     static let textMuted     = Color(red: 0x9a/255, green: 0xa2/255, blue: 0xb1/255)
     static let blueStart     = Color(red: 0x6e/255, green: 0x87/255, blue: 0xff/255)
     static let blueEnd       = Color(red: 0x4f/255, green: 0x6c/255, blue: 0xff/255)
-    static let redStart      = Color(red: 1.0,        green: 0.42,      blue: 0.51)
-    static let redEnd        = Color(red: 1.0,        green: 0.28,      blue: 0.39)
-    static let fieldBg       = Color(red: 0x0b/255,   green: 0x0f/255,   blue: 0x18/255)
+    static let redStart      = Color(red: 1.0, green: 0.42, blue: 0.51)
+    static let redEnd        = Color(red: 1.0, green: 0.28, blue: 0.39)
+    static let fieldBg       = Color(red: 0x0b/255, green: 0x0f/255, blue: 0x18/255)
 }
 
-// MARK: - Background
 struct AppBackground: View {
     var body: some View {
         ZStack {
@@ -28,7 +26,6 @@ struct AppBackground: View {
     }
 }
 
-// MARK: - Card
 struct Card<Content: View>: View {
     let content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
@@ -43,7 +40,6 @@ struct Card<Content: View>: View {
     }
 }
 
-// MARK: - Buttons
 struct PrimaryButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -90,7 +86,6 @@ struct DangerButton: ButtonStyle {
     }
 }
 
-// MARK: - Fields
 struct DarkTextField: ViewModifier {
     func body(content: Content) -> some View {
         content

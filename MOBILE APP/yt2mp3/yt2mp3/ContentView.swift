@@ -1,41 +1,35 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Validate YouTube links before enabling Convert
+// MARK: - URL validation (unchanged)
 fileprivate func isValidYouTubeURL(_ s: String) -> Bool {
     var t = s.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !t.isEmpty else { return false }
-
-    // Normalize scheme so URLComponents works
     if t.hasPrefix("//") { t = "https:" + t }
     if t.lowercased().hasPrefix("www.") { t = "https://" + t }
     if !t.lowercased().hasPrefix("http") { t = "https://" + t }
-
     guard var comps = URLComponents(string: t), var host = comps.host?.lowercased() else { return false }
-    if host.hasPrefix("m.") { host.removeFirst(2) }   // normalize mobile host
+    if host.hasPrefix("m.") { host.removeFirst(2) }
     comps.host = host
-
-    // youtu.be/<id>
     if host.hasSuffix("youtu.be") {
         let id = comps.path.split(separator: "/").first.map(String.init) ?? ""
         return id.count >= 6
     }
-
-    // youtube.com (incl. music.youtube.com)
     guard host.contains("youtube.com") else { return false }
-
-    // /shorts/<id>
     if comps.path.hasPrefix("/shorts/") {
         let id = String(comps.path.dropFirst("/shorts/".count))
         return id.count >= 6
     }
-
-    // /watch?v=<id>
-    if let v = comps.queryItems?.first(where: { $0.name == "v" })?.value, v.count >= 6 {
-        return true
-    }
-
+    if let v = comps.queryItems?.first(where: { $0.name == "v" })?.value, v.count >= 6 { return true }
     return false
+}
+
+// MARK: - Safe filename for iOS filesystem
+fileprivate func safeFilename(_ name: String) -> String {
+    let illegal = CharacterSet(charactersIn: "/:\\?%*|\"<>")
+    return name.components(separatedBy: illegal)
+        .joined(separator: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 struct ContentView: View {
@@ -58,13 +52,12 @@ struct ContentView: View {
     @State private var statusText = ""
     @State private var okText = ""
 
-    // iOS Files picker
+    // Optional Files picker
     @State private var showFileMover = false
     @State private var fileToMove: URL?
-    
-    // Checking if Admin
+
+    // Admin alert
     @State private var showAdminAlert = false
-    @State private var adminName = ""
 
     var body: some View {
         ZStack {
@@ -86,11 +79,7 @@ struct ContentView: View {
                                 .foregroundColor(.textMuted).font(.subheadline)
                             Spacer()
                             Button("Logout") {
-                                self.token = nil
-                                self.username = ""
-                                self.downloads = []
-                                self.okText = ""
-                                self.statusText = ""
+                                tokenOut()
                             }
                             .buttonStyle(DangerButton())
                             .frame(maxWidth: 140)
@@ -115,31 +104,34 @@ struct ContentView: View {
                                         do {
                                             let res = try await APIClient.shared.login(username: user, password: pass)
 
-                                            // Block admins on mobile
                                             if res.is_admin {
-                                                adminName = res.user
-                                                token = nil
-                                                username = ""
+                                                // Block admins on mobile
                                                 user = ""; pass = ""
-                                                okText = ""; statusText = ""
+                                                statusText = ""
+                                                okText = ""
                                                 showAdminAlert = true
                                                 return
                                             }
 
-                                            // normal user path
                                             token = res.token
                                             username = res.user
                                             user = ""; pass = ""
-                                            okText = ""; statusText = ""
+                                            statusText = ""; okText = ""
                                             await refreshDownloads()
                                         } catch {
+                                            pass = ""
                                             statusText = error.localizedDescription
                                         }
                                     }
                                 }
                                 .buttonStyle(PrimaryButton())
-
                             }
+                        }
+                        // show error on login card
+                        if !statusText.isEmpty {
+                            Text(statusText)
+                                .foregroundColor(.red)
+                                .font(.footnote)
                         }
                     }
 
@@ -164,11 +156,13 @@ struct ContentView: View {
                                             )
                                             lastFileId = res.file_id
                                             lastFilename = res.filename
-                                            okText = "Link converted."
-                                            statusText = ""
                                             yt = ""
+                                            statusText = ""
+                                            okText = "Link converted."
                                             await refreshDownloads()
-                                        } catch { statusText = error.localizedDescription }
+                                        } catch {
+                                            statusText = error.localizedDescription
+                                        }
                                     }
                                 }
                                 .buttonStyle(PrimaryButton())
@@ -185,29 +179,26 @@ struct ContentView: View {
                                                 await refreshDownloads()
                                             } catch { statusText = error.localizedDescription }
                                         }
-                                    }.buttonStyle(OutlineButton())
-                                     .disabled(lastFileId == nil)
-                                     .opacity(lastFileId == nil ? 0.55 : 1)
+                                    }
+                                    .buttonStyle(OutlineButton())
+                                    .disabled(lastFileId == nil)
+                                    .opacity(lastFileId == nil ? 0.55 : 1)
 
                                     Button("Download") {
                                         Task {
                                             guard let id = lastFileId, let token else { statusText = "Nothing to download yet."; return }
                                             do {
                                                 let f = try await APIClient.shared.downloadFile(fileId: id, token: token)
-
-                                                // Auto-move temp → Documents (visible in Files > On My iPhone > YourApp)
                                                 let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                                                let dest = docs.appendingPathComponent(f.suggestedName)
+                                                let clean = safeFilename(f.suggestedName)
+                                                let dest = docs.appendingPathComponent(clean)
                                                 try? FileManager.default.removeItem(at: dest)
                                                 try FileManager.default.moveItem(at: f.localURL, to: dest)
 
-                                                let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                                                let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                                                     ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
                                                     ?? "App"
-
-                                                okText = "Saved to: On My iPhone ▸ \(name) ▸ \(f.suggestedName)"
-                                                // Optional: also let user move elsewhere
-                                                // fileToMove = dest; showFileMover = true
+                                                okText = "Saved to: On My iPhone ▸ \(appName) ▸ \(clean)"
                                             } catch { statusText = error.localizedDescription }
                                         }
                                     }
@@ -225,7 +216,8 @@ struct ContentView: View {
                                                 await refreshDownloads()
                                             } catch { statusText = error.localizedDescription }
                                         }
-                                    }.buttonStyle(OutlineButton())
+                                    }
+                                    .buttonStyle(OutlineButton())
                                 }
 
                                 if !statusText.isEmpty {
@@ -241,8 +233,30 @@ struct ContentView: View {
                     // MY DOWNLOADS
                     if token != nil {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("My Downloads")
-                                .foregroundColor(.textPrimary).font(.headline).padding(.leading, 2)
+                            HStack {
+                                Text("My Downloads")
+                                    .foregroundColor(.textPrimary)
+                                    .font(.headline)
+
+                                Spacer()
+
+                                // Small circular refresh button with arrow icon
+                                Button {
+                                    Task { await refreshDownloads() }
+                                } label: {
+                                    Image(systemName: loadingDownloads ? "arrow.clockwise.circle.fill" : "arrow.clockwise")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .padding(10)
+                                        .accessibilityLabel("Refresh")
+                                }
+                                .buttonStyle(.plain)
+                                .background(Color(white: 0.12))
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.stroke, lineWidth: 1))
+                                .opacity(loadingDownloads ? 0.6 : 1.0)
+                            }
+                            .padding(.horizontal, 2)
+
                             if loadingDownloads { ProgressView().tint(.blueEnd) }
 
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 12)], spacing: 12) {
@@ -265,15 +279,16 @@ struct ContentView: View {
                                                 guard let token else { return }
                                                 do {
                                                     let f = try await APIClient.shared.downloadFile(fileId: id, token: token)
-                                                    // Auto-move to Documents
                                                     let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                                                    let dest = docs.appendingPathComponent(f.suggestedName)
+                                                    let clean = safeFilename(f.suggestedName)
+                                                    let dest = docs.appendingPathComponent(clean)
                                                     try? FileManager.default.removeItem(at: dest)
                                                     try FileManager.default.moveItem(at: f.localURL, to: dest)
-                                                    let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+
+                                                    let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                                                         ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
                                                         ?? "App"
-                                                    okText = "Saved to: On My iPhone ▸ \(name) ▸ \(f.suggestedName)"
+                                                    okText = "Saved to: On My iPhone ▸ \(appName) ▸ \(clean)"
                                                 } catch { statusText = error.localizedDescription }
                                             }
                                         },
@@ -298,13 +313,6 @@ struct ContentView: View {
                 .foregroundColor(.textPrimary)
             }
         }
-        // Optional Files move sheet (kept, but unused when auto-moving)
-        .fileMover(isPresented: $showFileMover, file: fileToMove) { result in
-            switch result {
-            case .success(let url): okText = "Saved to: \(url.path)"
-            case .failure(let err): statusText = "Save failed: \(err.localizedDescription)"
-            }
-        }
         .onAppear {
             UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor.white]
         }
@@ -312,6 +320,27 @@ struct ContentView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Please use the web app on your PC to log in as admin.")
+        }
+
+        // Footer only when NOT logged in
+        .safeAreaInset(edge: .bottom) {
+            Group {
+                if token == nil {
+                    VStack(spacing: 4) {
+                        Text("To create a user account please use the PC\n\n")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(.textPrimary)
+                        Text("App made by adm.ar")
+                            .font(.footnote)
+                            .foregroundColor(.textMuted.opacity(0.8))
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .background(Color.clear)   // no box
+                } else {
+                    EmptyView()                // no footer while logged in
+                }
+            }
         }
     }
 
@@ -323,11 +352,22 @@ struct ContentView: View {
         defer { loadingDownloads = false }
         do {
             downloads = try await APIClient.shared.myDownloads(token: token)
-        } catch { statusText = error.localizedDescription }
+        } catch {
+            statusText = error.localizedDescription
+            print("my_downloads failed:", error)
+        }
+    }
+
+    private func tokenOut() {
+        token = nil
+        username = ""
+        downloads = []
+        okText = ""
+        statusText = ""
     }
 }
 
-// MARK: - Download Card (with Delete)
+// MARK: - Download Card
 struct DownloadCard: View {
     let item: VideoItem
     let isYou: Bool
@@ -343,8 +383,8 @@ struct DownloadCard: View {
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                let ts = ISO8601DateFormatter().date(from: item.timestamp)
-                Text("\(ts.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .short) } ?? item.timestamp) • Status: \(item.status)\(ownerText)")
+                let tsDate = item.timestamp.flatMap { ISO8601DateFormatter().date(from: $0) }
+                Text("\(tsDate.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .short) } ?? (item.timestamp ?? "")) • Status: \(item.status)\(ownerText)")
                     .font(.caption)
                     .foregroundColor(.textMuted)
 

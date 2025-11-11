@@ -154,7 +154,7 @@ $("btn-download").addEventListener("click", async ()=>{
   try{
     const data=await api("/download",{method:"POST",body:JSON.stringify({url})});
     fileId=data.file_id; filename=data.filename; $("btn-get").disabled=false;
-    setText("app-ok","Processing started…");
+    setText("app-ok","The link is ready for the download.");
     pollUntilReady(fileId);
     await loadMyDownloads();
   }catch(e){ setText("app-msg", e.message) }
