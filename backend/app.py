@@ -10,20 +10,38 @@ from sqlalchemy import create_engine, Column, String, DateTime, Boolean, UniqueC
 from sqlalchemy.orm import sessionmaker, declarative_base
 from passlib.context import CryptContext
 from cryptography.fernet import Fernet
+from fastapi.staticfiles import StaticFiles
 
 # -------------------- App & CORS --------------------
-app = FastAPI()
+app = FastAPI(
+    title="YouTube to MP3 - API Documentation",
+    description="Auth, admin temp passwords, and YouTube → MP3.",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    swagger_ui_parameters={
+        "docExpansion": "list",
+        "defaultModelsExpandDepth": -1,   # hide big Schemas panel
+        "tryItOutEnabled": True,
+        "customCssUrl": "/static/docs.css",  # serve our custom CSS
+    },
+)
 
+# serve /static/docs.css (folder: backend/static/)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # or list your exact origins if you prefer
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=False,      # <-- important for "*" origin
+    allow_credentials=False,
     expose_headers=["Content-Disposition"],
 )
 
-@app.get("/", response_class=HTMLResponse)
+# Root
+@app.get("/", tags=["root"], summary="Root", response_class=HTMLResponse)
 def root():
     return "<p>FastAPI running. Frontend on http://127.0.0.1:5173</p>"
 
@@ -83,7 +101,6 @@ class PwAudit(Base):
 Base.metadata.create_all(bind=engine)
 
 # --- tiny auto-migrations for SQLite ---
-# --- tiny auto-migrations for SQLite ---
 with engine.begin() as conn:
     # users
     cols_users = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
@@ -130,6 +147,7 @@ with engine.begin() as conn:
     # wipe sessions on server start (after table exists)
     conn.exec_driver_sql("DELETE FROM tokens")
 
+    # (dup checks kept to be idempotent on restarts)
     cols_users = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
     if "enc_password" not in cols_users:
         conn.exec_driver_sql("ALTER TABLE users ADD COLUMN enc_password TEXT;")
@@ -178,11 +196,14 @@ def _load_or_create_key() -> bytes:
     key = Fernet.generate_key()
     with open(KEY_PATH, "wb") as f:
         f.write(key)
-    try: os.chmod(KEY_PATH, stat.S_IRUSR | stat.S_IWUSR)
-    except Exception: pass
+    try:
+        os.chmod(KEY_PATH, stat.S_IRUSR | stat.S_IWUSR)
+    except Exception:
+        pass
     return key
 
 FERNET = Fernet(_load_or_create_key())
+
 def encrypt_password(pw: str) -> str:
     return FERNET.encrypt(pw.encode("utf-8")).decode("utf-8")
 
@@ -254,7 +275,7 @@ TMP_DIR = os.environ.get("TMP_DIR", tempfile.gettempdir())
 os.makedirs(TMP_DIR, exist_ok=True)
 
 # -------------------- User endpoints --------------------
-@app.post("/register")
+@app.post("/register", tags=["auth"], summary="Register User")
 def register(data: RegisterRequest):
     db = SessionLocal()
     try:
@@ -273,7 +294,7 @@ def register(data: RegisterRequest):
     finally:
         db.close()
 
-@app.post("/login")
+@app.post("/login", tags=["auth"], summary="Login")
 def login(data: LoginRequest):
     db = SessionLocal()
     try:
@@ -287,12 +308,12 @@ def login(data: LoginRequest):
     finally:
         db.close()
 
-@app.get("/me")
+@app.get("/me", tags=["auth"], summary="Current User")
 def me(authorization: str = Header(None)):
     u = _get_user_by_token(authorization)
     return {"user": u.username, "is_admin": bool(u.is_admin)}
 
-@app.get("/users")
+@app.get("/users", tags=["users"], summary="List Users")
 def list_users(authorization: str = Header(None)):
     _ = _get_user_by_token(authorization)
     db = SessionLocal()
@@ -306,7 +327,7 @@ def list_users(authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.post("/users/{username}/reset_password")
+@app.post("/users/{username}/reset_password", tags=["users"], summary="Reset Password (Admin)")
 def reset_password(username: str, body: ResetPasswordBody, authorization: str = Header(None)):
     current = _get_user_by_token(authorization)
     if not current.is_admin:
@@ -325,7 +346,7 @@ def reset_password(username: str, body: ResetPasswordBody, authorization: str = 
     finally:
         db.close()
 
-@app.post("/change_password")
+@app.post("/change_password", tags=["users"], summary="Change Own Password")
 def change_password(body: ChangePasswordBody, authorization: str = Header(None)):
     current = _get_user_by_token(authorization)
     db = SessionLocal()
@@ -341,7 +362,7 @@ def change_password(body: ChangePasswordBody, authorization: str = Header(None))
         db.close()
 
 # Self-service reset (no token required)
-@app.post("/self_reset")
+@app.post("/self_reset", tags=["users"], summary="Self-Service Reset (No Token)")
 def self_reset(data: SelfResetBody):
     MASTER = "adminadmin"
     db = SessionLocal()
@@ -360,7 +381,7 @@ def self_reset(data: SelfResetBody):
         db.close()
 
 # -------------------- SAFE admin temp passwords --------------------
-@app.post("/admin/temp_pw/generate")
+@app.post("/admin/temp_pw/generate", tags=["admin"], summary="Admin Generate Temp Password")
 def admin_generate_temp(body: GenTempBody, authorization: str = Header(None)):
     admin = _get_user_by_token(authorization)
     if not admin.is_admin:
@@ -390,7 +411,7 @@ def admin_generate_temp(body: GenTempBody, authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/admin/temp_pw/reveal/{username}")
+@app.get("/admin/temp_pw/reveal/{username}", tags=["admin"], summary="Admin Reveal Temp Password (one-time)")
 def admin_reveal_temp(username: str, authorization: str = Header(None)):
     admin = _get_user_by_token(authorization)
     if not admin.is_admin:
@@ -417,7 +438,7 @@ def admin_reveal_temp(username: str, authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/admin/temp_pw/list")
+@app.get("/admin/temp_pw/list", tags=["admin"], summary="Admin List Temp Passwords")
 def admin_list_temps(authorization: str = Header(None)):
     admin = _get_user_by_token(authorization)
     if not admin.is_admin:
@@ -441,7 +462,7 @@ def admin_list_temps(authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/admin/pw_audit")
+@app.get("/admin/pw_audit", tags=["admin"], summary="Admin Password Audit Log")
 def admin_pw_audit(authorization: str = Header(None)):
     admin = _get_user_by_token(authorization)
     if not admin.is_admin:
@@ -463,7 +484,7 @@ def admin_pw_audit(authorization: str = Header(None)):
 class VideoRequest(BaseModel):
     url: str
 
-@app.post("/download")
+@app.post("/download", tags=["videos"], summary="Start YouTube → MP3")
 def download_video(data: VideoRequest, authorization: str = Header(None)):
     current = _get_user_by_token(authorization)
     db = SessionLocal()
@@ -510,7 +531,7 @@ def download_video(data: VideoRequest, authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/status/{file_id}")
+@app.get("/status/{file_id}", tags=["videos"], summary="Check Download Status")
 def check_status(file_id: str, authorization: str = Header(None)):
     _ = _get_user_by_token(authorization)
     db = SessionLocal()
@@ -522,7 +543,7 @@ def check_status(file_id: str, authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/download/{file_id}")
+@app.get("/download/{file_id}", tags=["videos"], summary="Download MP3 (via header or token query)")
 def get_file(file_id: str, authorization: Optional[str] = Header(None), token: Optional[str] = None):
     username = None
     if token:
@@ -544,7 +565,7 @@ def get_file(file_id: str, authorization: Optional[str] = Header(None), token: O
     finally:
         db.close()
 
-@app.delete("/delete/{file_id}")
+@app.delete("/delete/{file_id}", tags=["videos"], summary="Delete File (Owner/Admin)")
 def delete_file(file_id: str, authorization: str = Header(None)):
     current = _get_user_by_token(authorization)
     db = SessionLocal()
@@ -562,7 +583,7 @@ def delete_file(file_id: str, authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/videos")
+@app.get("/videos", tags=["videos"], summary="List All Videos")
 def list_videos(authorization: str = Header(None)):
     # any authenticated user can list all videos
     _ = _get_user_by_token(authorization)
@@ -571,7 +592,7 @@ def list_videos(authorization: str = Header(None)):
         videos = db.query(Video).all()
         return [{
             "id": v.id,
-            #"url": v.url,                 # keep if you want; remove this line if you don’t want to expose URLs
+            # "url": v.url,   # keep if you want; remove to avoid exposing URLs
             "status": v.status,
             "filename": v.filename,
             "owner_username": v.owner_username,
@@ -580,7 +601,7 @@ def list_videos(authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/my_downloads")
+@app.get("/my_downloads", tags=["videos"], summary="List My Downloads")
 def my_downloads(authorization: str = Header(None)):
     current = _get_user_by_token(authorization)
     db = SessionLocal()
@@ -599,7 +620,7 @@ def my_downloads(authorization: str = Header(None)):
     finally:
         db.close()
 
-@app.get("/user_downloads/{username}")
+@app.get("/user_downloads/{username}", tags=["videos"], summary="List Downloads by User")
 def user_downloads(username: str, authorization: str = Header(None)):
     _ = _get_user_by_token(authorization)
     db = SessionLocal()
@@ -619,7 +640,7 @@ def user_downloads(username: str, authorization: str = Header(None)):
         db.close()
 
 # -------------------- Admin: delete user + their downloads --------------------
-@app.delete("/admin/delete_user/{username}")
+@app.delete("/admin/delete_user/{username}", tags=["admin"], summary="Delete User and Their Downloads")
 def admin_delete_user(username: str, authorization: str = Header(None)):
     current = _get_user_by_token(authorization)
     if not current.is_admin:

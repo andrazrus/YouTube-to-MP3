@@ -1,0 +1,18 @@
+/* Transparent, glassy look */
+body { background: transparent !important; }
+.swagger-ui .topbar { background: transparent !important; box-shadow: none !important; }
+.swagger-ui .information-container.wrapper { background: transparent !important; }
+.swagger-ui .scheme-container,
+.swagger-ui .opblock,
+.swagger-ui .model-box,
+.swagger-ui .responses-inner,
+.swagger-ui table thead tr {
+  background: rgba(255,255,255,0.6) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+}
+.swagger-ui .opblock { box-shadow: 0 10px 24px rgba(0,0,0,0.06); }
+.swagger-ui .btn.authorize { border-radius: 999px; padding: 8px 14px; }
+.swagger-ui .opblock-summary-method { border-radius: 8px; }
+.swagger-ui .markdown p { opacity: .9; }
