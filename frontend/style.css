@@ -361,3 +361,31 @@ button, .btnSmall, .btnTiny{ min-height: 44px; } /* WCAG touch target */
 
 /* utility so JS can force-hide even on mobile */
 .hidden-mobile { display: none !important; }
+
+
+
+.flash-info{ animation: infoBlink .6s ease-in-out 5; }
+@keyframes infoBlink{ 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* flash the small status text green */
+.statusTxt.flash-green{
+  color:#4fff9d;
+  text-shadow:0 0 10px rgba(79,255,157,.8);
+  animation: statusPulse .8s ease-in-out 2;
+}
+@keyframes statusPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+
+.flash-green{
+  text-shadow: 0 0 10px rgba(79,255,157,.8);
+  animation: readyPulse .6s ease-in-out 2;
+}
+@keyframes readyPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+
+.resultBtns [data-sta]{ display:none !important; }
+
+
+/* status chips */
+.st{ font-weight: 700; }
+.st-ready    { color:#4fff9d; text-shadow:0 0 8px rgba(79,255,157,.5); }
+.st-progress { color:#ffd166; }        /* yellow */
+.st-other    { color:var(--muted); }   /* grey */

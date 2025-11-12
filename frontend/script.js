@@ -14,6 +14,23 @@ const escapeHtml = (s)=> (s||"").replace(/[&<>"']/g, c => (
   { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[c]
 ));
 
+// YouTube URL gating
+function isYtLink(u){
+  return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(u || "");
+}
+function updateConvertEnabled(){
+  const v = $("yt-url")?.value.trim() || "";
+  if ($("btn-download")) $("btn-download").disabled = !isYtLink(v);
+}
+
+// colored status helper
+function statusClass(s = "") {
+  const v = String(s).toLowerCase();
+  if (v === "ready") return "st st-ready";
+  if (v === "processing" || v === "in progress") return "st st-progress";
+  return "st st-other";
+}
+
 // Hard nuke of autofill: replace username/password inputs with fresh elements
 function nukeLoginInputs() {
   const u = $("login-username");
@@ -79,8 +96,8 @@ function show(viewId){
   const mb = document.querySelector(".mobileBar");
   if (mb) {
     const isMobile = window.matchMedia("(max-width: 900px)").matches;
-    const shouldShow = (viewId === "view-app") && isMobile;
-    mb.classList.toggle("hidden-mobile", !shouldShow);
+    theShouldShow = (viewId === "view-app") && isMobile;
+    mb.classList.toggle("hidden-mobile", !theShouldShow);
   }
 
   if (viewId === "view-login") resetLoginForm();
@@ -237,6 +254,10 @@ has("reset-form") && $("reset-form").addEventListener("submit", async (e)=>{
 
 // ---------- Static handlers ----------
 function wireStaticHandlers(){
+  // (optional) prevent double-wiring if this function is called multiple times
+  if (window.__wired) return;
+  window.__wired = true;
+
   has("btn-logout") && $("btn-logout").addEventListener("click", ()=>{
     for (const id of pollers.keys()){ clearInterval(pollers.get(id)); }
     pollers.clear();
@@ -250,15 +271,17 @@ function wireStaticHandlers(){
 
   has("btn-admin") && $("btn-admin").addEventListener("click", openAdminPanel);
   has("admin-close") && $("admin-close").addEventListener("click", closeAdminPanel);
-
   has("drawerClose") && $("drawerClose").addEventListener("click", drawerClose);
   $("drawerOverlay")?.addEventListener("click", drawerClose);
-
   has("btn-download") && $("btn-download").addEventListener("click", onConvert);
   has("btn-status")   && $("btn-status").addEventListener("click", onCheckStatus);
   has("btn-get")      && $("btn-get").addEventListener("click", onGetDirect);
-
-  has("toggle-all") && $("toggle-all").addEventListener("change", loadDownloads);
+  has("toggle-all")   && $("toggle-all").addEventListener("change", loadDownloads);
+  
+  if (has("yt-url")) {
+    $("yt-url").addEventListener("input", updateConvertEnabled);
+    updateConvertEnabled();            // set initial state
+  }
 }
 
 // Mobile sidebar controls
@@ -307,6 +330,7 @@ function initAppUI(){
   } else if (isAdmin && chk) {
     chk.disabled = false;
   }
+  updateConvertEnabled();
 }
 
 // ---------- Downloads grid ----------
@@ -358,16 +382,19 @@ function renderDownloads(){
     return `
       <div class="dlCard" id="dl-${it.id}">
         <div class="dlTitle">${escapeHtml(fname)}</div>
-        <div class="dlMeta">${ts} • Status: ${escapeHtml(it.status)}${owner}</div>
+        <div class="dlMeta">${ts} • Status:
+          <span class="statusTxt ${statusClass(it.status)}" id="st-${it.id}">
+            ${escapeHtml(it.status)}
+          </span>${owner}
+        </div>
         <div class="btnRow">
-          <button type="button" class="btnSmall js-status"   data-id="${it.id}">Status</button>
           <button type="button" class="btnSmall primary js-download" data-id="${it.id}" data-fname="${encodeURIComponent(fname)}" ${disabled}>Download</button>
           <button type="button" class="btnSmall js-delete"   data-id="${it.id}" ${delDisabled}>Delete</button>
         </div>
       </div>`;
   }).join("");
 
-  grid.querySelectorAll(".js-status").forEach(b => b.addEventListener("click", () => checkOne(b.dataset.id)));
+  // (no .js-status buttons anymore)
   grid.querySelectorAll(".js-download").forEach(b => b.addEventListener("click", () => {
     const url = `${API}/download/${encodeURIComponent(b.dataset.id)}?token=${encodeURIComponent(window.__token||"")}`;
     const fname = b.dataset.fname ? decodeURIComponent(b.dataset.fname) : "download.mp3";
@@ -391,6 +418,16 @@ function startPoller(id){
         clearInterval(int);
         pollers.delete(id);
         await loadDownloads();
+
+        if (fileId === id){
+          const ok = $("app-ok");
+          if (ok){
+            ok.textContent = "The link is ready for the download.";
+            ok.classList.remove("hidden");
+            ok.classList.add("flash-green");
+            setTimeout(()=> ok.classList.remove("flash-green"), 1500);
+          }
+        }
       }
     }catch{
       clearInterval(int);
@@ -400,18 +437,28 @@ function startPoller(id){
   pollers.set(id, int);
 }
 
+function flashStatus(id){
+  const el = document.getElementById(`st-${id}`);
+  if (!el) return;
+  el.classList.add("flash-green");
+  setTimeout(()=> el.classList.remove("flash-green"), 2000);
+}
+
 async function checkOne(id){
   try{
-    const st=await api(`/status/${id}`);
+    const st = await api(`/status/${id}`);
     if(st.ready){
       text($("app-ok"),"The link is ready for the download.");
       $("yt-url") && ($("yt-url").value="");
+      await loadDownloads();          // refresh list first
+      flashStatus(id);                // then flash the freshly rendered status
     }else{
       text($("app-ok"),"Still processing…");
     }
     await loadDownloads();
   }catch(e){ alert(e.message); }
 }
+
 async function deleteOne(id){
   try{
     await api(`/delete/${id}`,{method:"DELETE"});
@@ -422,17 +469,47 @@ async function deleteOne(id){
 
 // main controls
 async function onConvert(){
-  clearText($("app-msg")); clearText($("app-ok"));
-  const url=$("yt-url")?.value.trim();
-  if(!url){ text($("app-msg"),"Paste a YouTube URL."); return; }
+  clearText($("app-msg"));
+  clearText($("app-ok"));
+
+  const url = $("yt-url")?.value.trim();
+  if (!url){ text($("app-msg"), "Paste a YouTube URL."); return; }
+  if (!isYtLink?.(url)){ text($("app-msg"), "Please paste a valid YouTube link."); return; }
+
+  // show immediately
+  const ok = $("app-ok");
+  ok.textContent = "In progress…";
+  ok.classList.remove("hidden");
+  ok.classList.add("flash-info");
+  setTimeout(()=> ok.classList.remove("flash-info"), 5000);
+
+  $("btn-download") && ($("btn-download").disabled = true);
+
   try{
-    const data=await api("/download",{method:"POST",body:JSON.stringify({url})});
-    fileId=data.file_id; filename=data.filename; $("btn-get") && ($("btn-get").disabled=false);
-    text($("app-ok"),"The link is ready for the download.");
-    startPoller(fileId);
+    const data = await api("/download", {
+      method: "POST",
+      body: JSON.stringify({ url })
+    });
+
+    fileId   = data.file_id;
+    filename = data.filename;
+
+    // ✅ conversion finished -> show success now
+    ok.classList.remove("flash-info");
+    ok.textContent = "The link is ready for the download.";
+    ok.classList.add("flash-green");
+    setTimeout(()=> ok.classList.remove("flash-green"), 1500);
+
+    $("btn-get") && ($("btn-get").disabled = false);
+    startPoller(fileId);       // harmless if already ready
     await loadDownloads();
-  }catch(e){ text($("app-msg"), e.message); }
+  }catch(e){
+    text($("app-msg"), e.message);
+  }finally{
+    updateConvertEnabled?.();
+  }
 }
+
 async function onCheckStatus(){
   clearText($("app-msg")); clearText($("app-ok"));
   if(!fileId){ text($("app-msg"),"No file ID yet."); return; }
@@ -542,7 +619,10 @@ function renderSearchResults(){
         return `
           <div class="resultCard">
             <div class="resultTitle">${escapeHtml(v.filename || "(processing)")}</div>
-            <div class="resultMeta">${ts} • Status: ${escapeHtml(v.status)}${ownerBadge}${copies}</div>
+            <div class="resultMeta">${ts} • Status:
+              <span class="${statusClass(v.status)}">${escapeHtml(v.status)}</span>
+              ${ownerBadge}${copies}
+            </div>
             <div class="resultBtns">
               <button type="button" class="btnTiny" data-sta="${v.id}">Status</button>
               ${dlBtn}
@@ -598,7 +678,9 @@ async function openUserDrawer(targetUser){
           return `
             <div class="dlCard">
               <div class="dlTitle">${escapeHtml(fname)}</div>
-              <div class="dlMeta">${ts} • Status: ${escapeHtml(it.status)}</div>
+              <div class="dlMeta">${ts} • Status:
+                <span class="${statusClass(it.status)}">${escapeHtml(it.status)}</span>
+              </div>
               <div class="btnRow">
                 <button type="button" class="btnSmall primary js-u-dl"
                         data-id="${it.id}"

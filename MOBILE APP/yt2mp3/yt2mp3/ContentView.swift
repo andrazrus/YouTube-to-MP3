@@ -58,6 +58,11 @@ struct ContentView: View {
 
     // Admin alert
     @State private var showAdminAlert = false
+    
+    // Progress pop-up
+    @State private var itemMessages: [String:String] = [:]   // fileId -> "ready" | "in progress" | "downloaded"
+    
+
 
     var body: some View {
         ZStack {
@@ -198,7 +203,7 @@ struct ContentView: View {
                                                 let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                                                     ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
                                                     ?? "App"
-                                                okText = "Saved to: On My iPhone ▸ \(appName) ▸ \(clean)"
+                                                okText = "Downloaded Location: On My iPhone\\\(appName)\\\(clean)"
                                             } catch { statusText = error.localizedDescription }
                                         }
                                     }
@@ -264,11 +269,13 @@ struct ContentView: View {
                                     DownloadCard(
                                         item: item,
                                         isYou: (item.owner_username ?? username) == username,
+                                        message: itemMessages[item.id],
                                         onStatus: { id in
                                             Task {
                                                 guard let token else { return }
                                                 do {
                                                     let r = try await APIClient.shared.checkStatus(fileId: id, token: token)
+                                                    flashMessage(for: id, r ? "Ready" : "In Progress")     // <- auto-hide
                                                     okText = r ? "Ready" : "Still processing…"
                                                     await refreshDownloads()
                                                 } catch { statusText = error.localizedDescription }
@@ -288,7 +295,12 @@ struct ContentView: View {
                                                     let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                                                         ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
                                                         ?? "App"
-                                                    okText = "Saved to: On My iPhone ▸ \(appName) ▸ \(clean)"
+
+                                                    // Backslash path (Swift string needs escaping with \\)
+                                                    okText = "Downloaded Location: On My iPhone\\\(appName)\\"
+
+                                                    flashMessage(for: id, "Downloaded Location: On My iPhone\\\(appName)\\")    // <- auto-hide
+                                                    flashMessage(for: id, "downloaded")
                                                 } catch { statusText = error.localizedDescription }
                                             }
                                         },
@@ -298,6 +310,7 @@ struct ContentView: View {
                                                 do {
                                                     try await APIClient.shared.delete(fileId: id, token: token)
                                                     okText = "Deleted."
+                                                    itemMessages[id] = nil
                                                     await refreshDownloads()
                                                 } catch { statusText = error.localizedDescription }
                                             }
@@ -305,6 +318,8 @@ struct ContentView: View {
                                     )
                                 }
                             }
+
+
                         }
                     }
                 }
@@ -357,6 +372,19 @@ struct ContentView: View {
             print("my_downloads failed:", error)
         }
     }
+    
+    @MainActor
+    private func flashMessage(for id: String, _ text: String) {
+        itemMessages[id] = text
+        // auto-clear after 2 seconds
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            // only clear if unchanged (avoid racing newer messages)
+            if itemMessages[id] == text {
+                itemMessages[id] = nil
+            }
+        }
+    }
 
     private func tokenOut() {
         token = nil
@@ -371,6 +399,7 @@ struct ContentView: View {
 struct DownloadCard: View {
     let item: VideoItem
     let isYou: Bool
+    let message: String?                 // <— NEW
     let onStatus: (String) -> Void
     let onDownload: (String) -> Void
     let onDelete: (String) -> Void
@@ -389,15 +418,20 @@ struct DownloadCard: View {
                     .foregroundColor(.textMuted)
 
                 HStack(spacing: 8) {
-                    Button("Status") { onStatus(item.id) }.buttonStyle(OutlineButton())
-
+                    Button("Status")   { onStatus(item.id) }.buttonStyle(OutlineButton())
                     Button("Download") { onDownload(item.id) }
                         .buttonStyle(PrimaryButton())
                         .disabled(item.status != "ready")
                         .opacity(item.status == "ready" ? 1 : 0.55)
+                    Button("Delete")   { onDelete(item.id) }.buttonStyle(OutlineButton())
+                }
 
-                    Button("Delete") { onDelete(item.id) }
-                        .buttonStyle(OutlineButton())
+                // Inline result of last action (status/download)
+                if let m = message, !m.isEmpty {
+                    Text(m.capitalized)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(colorForMessage(m))
+                        .padding(.top, 2)
                 }
             }
         }
@@ -406,5 +440,16 @@ struct DownloadCard: View {
     private var ownerText: String {
         if let o = item.owner_username, !o.isEmpty, !isYou { return " • by \(o)" }
         return ""
+    }
+
+    private func colorForMessage(_ m: String) -> Color {
+        let s = m.lowercased()
+        if s == "ready" || s == "downloaded" || s.hasPrefix("downloaded ") {
+            return .green
+        }
+        if s == "in progress" || s.hasPrefix("still processing") {
+            return .yellow
+        }
+        return .textMuted
     }
 }

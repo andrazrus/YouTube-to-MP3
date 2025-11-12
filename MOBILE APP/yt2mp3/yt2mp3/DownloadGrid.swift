@@ -4,6 +4,11 @@ import SwiftUI
 struct DownloadGrid: View {
     let downloads: [VideoItem]
     let currentUser: String
+
+    /// Optional per-item messages like "in progress", "ready", "downloaded"
+    /// Key = fileId (VideoItem.id)
+    let messages: [String:String]
+
     let onStatus: (String) -> Void
     let onDownload: (String) -> Void
     let onDelete: (String) -> Void
@@ -16,6 +21,7 @@ struct DownloadGrid: View {
                 DownloadCard(
                     item: item,
                     isYou: (item.owner_username ?? currentUser) == currentUser,
+                    message: messages[item.id],          // shows inline status under the buttons
                     onStatus: onStatus,
                     onDownload: onDownload,
                     onDelete: onDelete
